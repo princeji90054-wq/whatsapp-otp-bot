@@ -1,6 +1,7 @@
 {
   "name": "whatsapp-otp-bot",
   "version": "1.0.0",
+  "description": "WhatsApp OTP Bot using Baileys and Express",
   "main": "server.js",
   "scripts": {
     "start": "node server.js"

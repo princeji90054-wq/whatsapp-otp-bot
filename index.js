@@ -1,21 +1,27 @@
 const { default: makeWASocket, useMultiFileAuthState, DisconnectReason } = require('@whiskeysockets/baileys');
 const qrcode = require('qrcode-terminal');
-const pino = require('pino');
+const express = require('express');
+
+const app = express();
+app.use(express.json());
+
+const PORT = process.env.PORT || 3000;
+
+let sock;
 
 async function connectToWhatsApp() {
-    // yeh auth_info folder me aapke WhatsApp ka session save karega taaki bar-bar QR code na scan karna pade
     const { state, saveCreds } = await useMultiFileAuthState('auth_info_baileys');
 
-    const sock = makeWASocket({
+    sock = makeWASocket({
         auth: state,
-        logger: pino({ level: 'silent' }) // logs ko clean rakhne ke liye
+        printQRInTerminal: true
     });
 
     sock.ev.on('connection.update', (update) => {
         const { connection, lastDisconnect, qr } = update;
-        
+
         if (qr) {
-            console.log('Scan this QR code with your WhatsApp:');
+            console.log('Scan this QR code:');
             qrcode.generate(qr, { small: true });
         }
 
@@ -33,4 +39,33 @@ async function connectToWhatsApp() {
     sock.ev.on('creds.update', saveCreds);
 }
 
-connectToWhatsApp();
+// Android App se OTP bhejne ke liye API Route
+app.post('/send-otp', async (req, res) => {
+    try {
+        const { phone, otp } = req.body;
+        
+        if (!phone || !otp) {
+            return res.status(400).json({ success: false, message: 'Phone number and OTP are required' });
+        }
+
+        // WhatsApp number format theek karna (jaise 919876543210@s.whatsapp.net)
+        const recipient = phone.includes('@s.whatsapp.net') ? phone : `${phone}@s.whatsapp.net`;
+        const message = `Aapka OTP code hai: *${otp}*`;
+
+        await sock.sendMessage(recipient, { text: message });
+
+        res.status(200).json({ success: true, message: 'OTP sent successfully!' });
+    } catch (error) {
+        console.error('Error sending OTP:', error);
+        res.status(500).json({ success: false, message: 'Failed to send OTP', error: error.message });
+    }
+});
+
+app.get('/', (req, res) => {
+    res.send('WhatsApp OTP Bot API is running!');
+});
+
+app.listen(PORT, () => {
+    console.log(`Server is running on port ${PORT}`);
+    connectToWhatsApp();
+});

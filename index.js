@@ -10,8 +10,8 @@ app.use(cors());
 
 let sock;
 
-// Yahan apna MongoDB connection string daalein
-const mongoUrl = "mongodb+srv://your_connection_string_here";
+// Aapka real MongoDB connection string yahan set hai
+const mongoUrl = "mongodb+srv://princeji90054_db_user:princeji90054_db_user@cluster0.dbykcf7.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0";
 const dbName = "whatsapp_bot_db";
 
 async function useMongoDBAuthState(db) {
@@ -86,32 +86,36 @@ async function useMongoDBAuthState(db) {
 }
 
 async function connectToWhatsApp() {
-    const client = new MongoClient(mongoUrl);
-    await client.connect();
-    const db = client.db(dbName);
-    console.log('Connected to MongoDB Atlas successfully!');
+    try {
+        const client = new MongoClient(mongoUrl);
+        await client.connect();
+        const db = client.db(dbName);
+        console.log('Connected to MongoDB Atlas successfully!');
 
-    const { state, saveCreds } = await useMongoDBAuthState(db);
-    
-    sock = makeWASocket({
-        auth: state,
-        printQRInTerminal: true
-    });
+        const { state, saveCreds } = await useMongoDBAuthState(db);
+        
+        sock = makeWASocket({
+            auth: state,
+            printQRInTerminal: true
+        });
 
-    sock.ev.on('connection.update', (update) => {
-        const { connection, qr } = update;
-        if (qr) {
-            qrcode.generate(qr, { small: true });
-        }
-        if (connection === 'open') {
-            console.log('WhatsApp Bot connected successfully!');
-        } else if (connection === 'close') {
-            console.log('Connection closed, reconnecting...');
-            connectToWhatsApp();
-        }
-    });
+        sock.ev.on('connection.update', (update) => {
+            const { connection, qr } = update;
+            if (qr) {
+                qrcode.generate(qr, { small: true });
+            }
+            if (connection === 'open') {
+                console.log('WhatsApp Bot connected successfully!');
+            } else if (connection === 'close') {
+                console.log('Connection closed, reconnecting...');
+                connectToWhatsApp();
+            }
+        });
 
-    sock.ev.on('creds.update', saveCreds);
+        sock.ev.on('creds.update', saveCreds);
+    } catch (err) {
+        console.error('MongoDB Connection Error:', err);
+    }
 }
 
 connectToWhatsApp();

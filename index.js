@@ -2,6 +2,7 @@ const { default: makeWASocket, useMultiFileAuthState } = require('@whiskeysocket
 const express = require('express');
 const cors = require('cors');
 const qrcode = require('qrcode-terminal');
+const { MongoClient } = require('mongodb');
 
 const app = express();
 app.use(express.json());
@@ -9,8 +10,88 @@ app.use(cors());
 
 let sock;
 
+// Yahan apna MongoDB connection string daalein
+const mongoUrl = "mongodb+srv://your_connection_string_here";
+const dbName = "whatsapp_bot_db";
+
+async function useMongoDBAuthState(db) {
+    const coll = db.collection('auth_session');
+
+    const writeData = async (data, id) => {
+        const stringified = JSON.stringify(data, (key, value) => 
+            value instanceof Buffer ? { type: 'Buffer', data: Array.from(value) } : value
+        );
+        await coll.updateOne({ _id: id }, { $set: { data: stringified } }, { upsert: true });
+    };
+
+    const readData = async (id) => {
+        try {
+            const result = await coll.findOne({ _id: id });
+            if (!result) return null;
+            return JSON.parse(result.data, (key, value) => {
+                if (value !== null && typeof value === 'object' && value.type === 'Buffer') {
+                    return Buffer.from(value.data);
+                }
+                return value;
+            });
+        } catch (error) {
+            return null;
+        }
+    };
+
+    const removeData = async (id) => {
+        try {
+            await coll.deleteOne({ _id: id });
+        } catch (error) {}
+    };
+
+    const creds = await readData('creds') || {};
+
+    return {
+        state: {
+            creds,
+            keys: {
+                get: async (type, ids) => {
+                    const data = {};
+                    await Promise.all(
+                        ids.map(async (id) => {
+                            let value = await readData(`${type}-${id}`);
+                            if (type === 'app-state-sync-key' && value) {
+                                value = proto.Message.AppStateSyncKeyData.fromObject(value);
+                            }
+                            data[id] = value;
+                        })
+                    );
+                    return data;
+                },
+                set: async (data) => {
+                    const tasks = [];
+                    for (const category of Object.keys(data)) {
+                        for (const id of Object.keys(data[category])) {
+                            const value = data[category][id];
+                            const key = `${category}-${id}`;
+                            if (value) {
+                                tasks.push(writeData(value, key));
+                            } else {
+                                tasks.push(removeData(key));
+                            }
+                        }
+                    }
+                    await Promise.all(tasks);
+                }
+            }
+        },
+        saveCreds: () => writeData(state.creds, 'creds')
+    };
+}
+
 async function connectToWhatsApp() {
-    const { state, saveCreds } = await useMultiFileAuthState('auth_info');
+    const client = new MongoClient(mongoUrl);
+    await client.connect();
+    const db = client.db(dbName);
+    console.log('Connected to MongoDB Atlas successfully!');
+
+    const { state, saveCreds } = await useMongoDBAuthState(db);
     
     sock = makeWASocket({
         auth: state,

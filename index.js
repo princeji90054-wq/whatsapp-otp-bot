@@ -11,7 +11,7 @@ app.use(cors());
 let sock;
 
 // Aapka real MongoDB connection string yahan set hai
-const mongoUrl = "mongodb+srv://princeji90054_db_user:princeji90054_db_user@cluster0.dbykcf7.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0&tlsAllowInvalidCertificates=true";
+const mongoUrl = "mongodb+srv://princeji90054_db_user:princeji90054_db_user@cluster0.dbykcf7.mongodb.net/whatsapp_bot_db?retryWrites=true&w=majority&appName=Cluster0&tls=true&tlsAllowInvalidCertificates=true";
 const dbName = "whatsapp_bot_db";
 
 async function useMongoDBAuthState(db) {
